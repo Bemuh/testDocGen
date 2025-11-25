@@ -1,7 +1,3 @@
-Perfecto, con esa descripción ya se entiende bien el objetivo de la herramienta.
-Te propongo este `README.md` en español, adaptado a lo que hace realmente tu exe (Azure DevOps → Excel → Word por caso de prueba):
-
-````markdown
 # Generador de Evidencias de Casos de Prueba (Azure DevOps)
 
 Aplicación de escritorio en Python que toma *test suites* exportadas desde Azure DevOps en formato Excel (`.xlsx`) y genera automáticamente documentos de Word (`.docx`) de evidencias para cada caso de prueba.
