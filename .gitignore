@@ -1,0 +1,53 @@
+# -----------------------
+# Python bytecode / cache
+# -----------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# -----------------------
+# Virtual environments
+# -----------------------
+venv/
+.venv/
+env/
+.env/
+
+# -----------------------
+# Build / distribution
+# -----------------------
+build/
+dist/
+*.egg-info/
+*.egg
+
+# -----------------------
+# Logs / temp files
+# -----------------------
+*.log
+*.tmp
+
+# -----------------------
+# IDE / editor settings
+# -----------------------
+.vscode/
+.idea/
+*.swp
+
+# -----------------------
+# OS-specific junk
+# -----------------------
+.DS_Store
+Thumbs.db
+
+# -----------------------
+# Data files
+# -----------------------
+# Ignore all Excel files by default...
+*.xlsx
+
+# ...but explicitly keep this example
+Narp_Ejemplo.xlsx
+footer.png
+header.png
