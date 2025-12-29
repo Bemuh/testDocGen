@@ -46,6 +46,7 @@ Thumbs.db
 # -----------------------
 # Ignore all Excel files by default...
 *.xlsx
+*.docx
 
 # ...but explicitly keep this example
 Narp_Ejemplo.xlsx
