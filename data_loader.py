@@ -1,9 +1,18 @@
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 from openpyxl import load_workbook
 
 Step = Tuple[str, str]
 CaseDict = Dict[str, Dict[str, List[Step]]]
+
+def _normalize_case_id(value: Union[str, int, float]) -> str:
+    if isinstance(value, (int, float)):
+        return str(int(value))
+    text = str(value).strip()
+    if text.endswith(".0") and text.replace(".", "", 1).isdigit():
+        return text[:-2]
+    return text
+
 
 def load_test_cases_from_excel(path: Path) -> CaseDict:
     wb = load_workbook(path, read_only=True, data_only=True)
@@ -23,7 +32,7 @@ def load_test_cases_from_excel(path: Path) -> CaseDict:
         r_id, r_tit, r_act, r_exp = row[id_idx], row[tit_idx], row[act_idx], row[exp_idx]
 
         if r_id and r_tit:
-            current = str(r_id)
+            current = _normalize_case_id(r_id)
             cases[current] = {"title": r_tit, "steps": []}
 
         if current and r_act:

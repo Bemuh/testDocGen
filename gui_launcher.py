@@ -221,6 +221,11 @@ class App(tk.Tk):
                 date=self.date.get(),
                 success_message="Resultado del caso de prueba: Éxito",
                 font_config=DEFAULT_FONT,
+                template_path=None,
+                privacy_classification="DOCUMENTO PRIVADO",
+                resultado="Exito",
+                evidencia="",
+                version="001",
             )
 
             collisions = generate_docs(

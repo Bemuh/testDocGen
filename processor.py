@@ -5,6 +5,7 @@ from typing import Final
 
 from data_loader import load_test_cases_from_excel
 from document_generator import create_test_case_document, TestCaseDocumentConfig
+from case_resolver import build_output_filename, resolve_case
 
 _RE_PLAN: Final = re.compile(r".* - Sprint \d+_(\d+)\s*_?\s*(.+)$")
 INVALID_CHARS: Final = re.compile(r'[\\/*?:"<>|]')
@@ -89,14 +90,15 @@ def process_excel_files(
             continue
 
         for case_id, data in cases.items():
-            title_slug = _slugify(data["title"], max_file_len)
-            out_file = plan_dir / f"{case_id} {title_slug}.docx"
+            resolved = resolve_case(case_id, data["title"], data["steps"], cfg, excel_path.stem)
+            filename = build_output_filename(resolved)
+            out_file = plan_dir / f"{filename}.docx"
 
             if out_file.exists() and not overwrite:
                 collisions.append(out_file)
                 continue
 
-            doc = create_test_case_document(case_id, data["title"], data["steps"], cfg)
+            doc = create_test_case_document(resolved, cfg)
             doc.save(out_file)
             logging.info("   ✔ %s", out_file.relative_to(dest_root))
 
@@ -116,12 +118,14 @@ def regenerate_single(path: Path, cfg: TestCaseDocumentConfig) -> None:
         return
 
     cases = load_test_cases_from_excel(excel_file)
-    case_id = path.name.split(" ")[0]                    # "22933"
+    match = re.match(r"(\\d+)", path.name)
+    case_id = match.group(1) if match else ""
     if case_id not in cases:
         logging.warning("El caso %s no existe en %s", case_id, excel_file.name)
         return
 
     data = cases[case_id]
-    doc = create_test_case_document(case_id, data["title"], data["steps"], cfg)
+    resolved = resolve_case(case_id, data["title"], data["steps"], cfg, excel_file.stem)
+    doc = create_test_case_document(resolved, cfg)
     doc.save(path)
     logging.info("   ↻ %s (sobrescrito)", path.relative_to(plan_dir.parent))
