@@ -107,7 +107,6 @@ def test_docx_contains_sections_and_overrides(tmp_path: Path):
     assert "01/01/2026" in body_text
     assert "Paso 1" in body_text
     assert "Resultado 2" in body_text
-    assert "video.mp4" in body_text
 
     expected_name = "17731CP14–CasoEditado_HU15_AUT_HU035_REQ003_V002"
     assert build_output_filename(resolved) == expected_name

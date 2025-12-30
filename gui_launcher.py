@@ -57,6 +57,9 @@ class App(tk.Tk):
         self.date       = tk.StringVar(value=_dt.date.today().strftime("%d/%m/%Y"))
         self.header_img = tk.StringVar(value="")
         self.footer_img = tk.StringVar(value="")
+        
+        # Dictionary to track Entry widgets for later access
+        self.entries = {}
 
         self._build_form()
 
@@ -73,6 +76,9 @@ class App(tk.Tk):
             entry = ttk.Entry(frame, textvariable=var)
             entry.pack(side="left", fill="x", expand=1)
             add_placeholder(entry, placeholder)
+            
+            # Store entry widget reference for later access (use id() since StringVar is not hashable)
+            self.entries[id(var)] = entry
 
             if browse:
                 ttk.Button(frame, text="…",
@@ -121,8 +127,10 @@ class App(tk.Tk):
         )
         if path:
             var.set(path)
-            entry = self.entries[var]
-            entry.config(foreground="black", font=EDIT_FONT)
+            var_id = id(var)
+            if var_id in self.entries:
+                entry = self.entries[var_id]
+                entry.config(foreground="black", font=EDIT_FONT)
 
     # --------------- generar ---------------------
     def _run(self):
@@ -134,83 +142,10 @@ class App(tk.Tk):
         self.status.config(text="Procesando...")
         threading.Thread(target=self._worker, daemon=True).start()
 
-    # def _worker(self):
-    #     try:
-    #         cfg = TestCaseDocumentConfig(
-    #             header_image=self.header_img.get() or "header.png",
-    #             footer_image=self.footer_img.get() or "footer.png",
-    #             project_name=self.project.get() or "Nombre del Proyecto",
-    #             analyst_name=self.analyst.get() or "Nombre del Analista de Calidad",
-    #             date=self.date.get(),
-    #             success_message="Resultado del caso de prueba: Éxito",
-    #             font_config=DEFAULT_FONT,
-    #         )
-    #         generate_docs(
-    #             Path(self.folder_src.get()),
-    #             cfg,
-    #             dest_root=Path(self.folder_dst.get()) or None
-    #         )
-    #     except Exception as exc:  # noqa: BLE001
-    #         self._finish(f"Error: {exc}", "red")
-    #     else:
-    #         self._finish("¡Documentos de Word generados con éxito!", "green")
+    def _finish(self, msg, color):
+        """Update status label on the main thread."""
+        self.after(0, lambda: self.status.config(text=msg, foreground=color))
 
-    # def _finish(self, msg, color):
-    #     self.after(0, lambda: self.status.config(text=msg, foreground=color))
-
-    # def _worker(self):
-    #     try:
-    #         cfg = TestCaseDocumentConfig(
-    #             header_image=self.header_img.get() or "header.png",
-    #             footer_image=self.footer_img.get() or "footer.png",
-    #             project_name=self.project.get()  or "Nombre del Proyecto",
-    #             analyst_name=self.analyst.get()  or "Nombre del Analista de Calidad",
-    #             date=self.date.get(),
-    #             success_message="Resultado del caso de prueba: Éxito",
-    #             font_config=DEFAULT_FONT,
-    #         )
-
-    #         # 1ª pasada: NO sobrescribe
-    #         collisions = generate_docs(
-    #             Path(self.folder_src.get()), cfg,
-    #             dest_root=Path(self.folder_dst.get()) or None,
-    #             overwrite=False
-    #         )
-
-    #         # Si hubo colisiones, preguntar
-    #         if collisions:
-    #             overwrite = self._ask_overwrite(len(collisions))
-    #             if overwrite:
-    #                 # 2ª pasada con overwrite=True
-    #                 generate_docs(
-    #                     Path(self.folder_src.get()), cfg,
-    #                     dest_root=Path(self.folder_dst.get()) or None,
-    #                     overwrite=True
-    #                 )
-    #             else:
-    #                 self._finish("Generación cancelada por usuario.", "red")
-    #                 return
-
-    #     except Exception as exc:   # noqa: BLE001
-    #         self._finish(f"Error: {exc}", "red")
-    #     else:
-    #         self._finish("¡Documentos de Word generados con éxito!", "green")
-
-    # # ---------- diálogo sí / no ------------------
-    # def _ask_overwrite(self, n: int) -> bool:
-    #     var = tk.BooleanVar()
-
-    #     def _ask():
-    #         res = messagebox.askyesno(
-    #             "Archivos existentes",
-    #             f"Se encontraron {n} archivos Word ya existentes.\n"
-    #             "¿Deseas sobrescribirlos?"
-    #         )
-    #         var.set(res)
-
-    #     self.after(0, _ask)
-    #     self.wait_variable(var)
-    #     return var.get()
     def _worker(self):
         try:
             cfg = TestCaseDocumentConfig(
@@ -256,7 +191,7 @@ class App(tk.Tk):
         else:
             self._finish("¡Documentos de Word generados con éxito!", "green")
 
-# ---------- diálogo global (4 opciones) -----------------------------------
+    # ---------- diálogo global (4 opciones) -----------------------------------
     def _ask_global(self, n: int) -> str:
         dlg = tk.Toplevel(self); dlg.title("Archivos existentes")
         ttk.Label(dlg, text=f"Hay {n} archivos Word que ya existen.\n"
@@ -279,7 +214,7 @@ class App(tk.Tk):
         dlg.grab_set(); self.wait_window(dlg)
         return ans.get()
 
-# ---------- diálogo por-archivo ------------------------------------------
+    # ---------- diálogo por-archivo ------------------------------------------
     def _ask_each(self, paths: list[Path], cfg):
         replace_all = False
         skip_all    = False
