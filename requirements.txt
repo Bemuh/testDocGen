@@ -1,0 +1,5 @@
+python-docx>=0.8.11
+openpyxl>=3.0.0
+# Opcional: para generar copia PDF en Windows/macOS usando Microsoft Word.
+# Alternativa sin pip: instalar LibreOffice y asegurar que `soffice` esté en PATH.
+docx2pdf>=0.1.8

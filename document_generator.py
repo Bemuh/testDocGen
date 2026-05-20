@@ -105,10 +105,30 @@ def _create_document_structure() -> Document:
     from docx.shared import Twips
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
-    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
     
     doc = Document()
-    
+
+    # Configure Normal style: Source Sans Pro + idioma es-ES
+    normal = doc.styles['Normal']
+    normal.font.name = "Source Sans Pro"
+    normal.font.size = Pt(11)
+    rpr = normal.element.get_or_add_rPr()
+    rfonts = rpr.find(qn('w:rFonts'))
+    if rfonts is None:
+        rfonts = OxmlElement('w:rFonts')
+        rpr.insert(0, rfonts)
+    for attr in ('w:ascii', 'w:hAnsi', 'w:cs', 'w:eastAsia'):
+        rfonts.set(qn(attr), "Source Sans Pro")
+    existing_lang = rpr.find(qn('w:lang'))
+    if existing_lang is not None:
+        rpr.remove(existing_lang)
+    lang = OxmlElement('w:lang')
+    lang.set(qn('w:val'), 'es-ES')
+    lang.set(qn('w:eastAsia'), 'es-ES')
+    lang.set(qn('w:bidi'), 'ar-SA')
+    rpr.append(lang)
+
     # Set page margins (1.25" sides, 1" top/bottom)
     section = doc.sections[0]
     section.left_margin = Inches(1.25)
@@ -232,8 +252,9 @@ def _create_document_structure() -> Document:
     
     # Row 6: Template step row (step number | step content)
     row6 = table.rows[6]
-    # Step Num: Col 0
+    # Step Num: Col 0 (centered)
     _set_cell_text(row6.cells[0], "1", bold=True)
+    row6.cells[0].paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
     row6.cells[0].width = col0_w
     # Content: Merge Col 1,2,3,4
     row6.cells[1].merge(row6.cells[2]).merge(row6.cells[3]).merge(row6.cells[4])
@@ -256,11 +277,11 @@ def _create_document_structure() -> Document:
     row8.cells[2].merge(row8.cells[3]).merge(row8.cells[4])
     row8.cells[2].width = merged_val_w
     
-    # Add Control De Acceso section
-    doc.add_paragraph()  # Spacer
-    
+    # Add Control De Acceso section (siempre en página nueva)
+
     # Control De Acceso title
     control_access_title = doc.add_paragraph()
+    control_access_title.paragraph_format.page_break_before = True
     control_access_title.alignment = WD_PARAGRAPH_ALIGNMENT.JUSTIFY
     run_cat = control_access_title.add_run("Control De Acceso ")
     run_cat.bold = True
@@ -333,7 +354,14 @@ def _create_document_structure() -> Document:
     _set_cell_text(version_table.rows[1].cells[2], "Ana María Garzón")
     _set_cell_text(version_table.rows[1].cells[3], "QA Senior")
     _set_cell_text(version_table.rows[1].cells[4], "Creación")
-    
+
+    # Centrar (horizontal + vertical) todo el contenido de la tabla Control De Versiones
+    for vrow in version_table.rows:
+        for vcell in vrow.cells:
+            vcell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            for vpara in vcell.paragraphs:
+                vpara.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
     return doc
 
 
@@ -393,11 +421,15 @@ def _set_cell_label(cell, text: str) -> None:
     paragraph = cell.paragraphs[0]
     run = paragraph.add_run(text)
     run.bold = True
+    run.font.name = "Source Sans Pro"
+    run.font.size = Pt(12)
 
 
 def _set_cell_value(cell, text: str) -> None:
     _clear_cell(cell)
-    cell.paragraphs[0].add_run(text)
+    run = cell.paragraphs[0].add_run(text)
+    run.font.name = "Source Sans Pro"
+    run.font.size = Pt(12)
 
 
 def _populate_header(doc: Document, resolved: ResolvedCase, cfg: TestCaseDocumentConfig) -> None:
@@ -525,8 +557,9 @@ def _populate_steps(table, pasos_row_idx: int, result_row_idx: int, steps: list[
 
         cells = new_row.cells
         if cells:
-            cells[0].text = "" 
+            cells[0].text = ""
             para = cells[0].paragraphs[0]
+            para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
             run = para.add_run(str(step_index))
             run.bold = True
             run.font.name = "Source Sans Pro"
@@ -628,7 +661,7 @@ def _populate_main_table(doc: Document, resolved: ResolvedCase) -> None:
     if len(row4_cells) >= 2:
         if "Fecha" not in row4_cells[0].text:
              _set_cell_label(row4_cells[0], "Fecha")
-        _set_cell_value(row4_cells[1], resolved.date)
+        _set_cell_value(row4_cells[1], resolved.date_slash)
 
     # First pass: only find pasos_row_idx (before step population changes indices)
     for idx, row in enumerate(table.rows):
@@ -714,7 +747,7 @@ def _populate_main_table(doc: Document, resolved: ResolvedCase) -> None:
     if len(row_cells) >= 2:
         if "Evidencia" not in row_cells[0].text:
             _set_cell_label(row_cells[0], "Evidencia")
-        _set_cell_value(row_cells[1], "")
+        _set_cell_value(row_cells[1], resolved.evidencia)
 
 
 def create_test_case_document(resolved: ResolvedCase, cfg: TestCaseDocumentConfig) -> Document:

@@ -8,11 +8,11 @@ from document_generator import TestCaseDocumentConfig, FontConfig
 
 # ---------- configuraciÇün por defecto ----------
 DEFAULT_FONT = FontConfig(
-    table_font_name="Segoe UI", table_font_size=12,
-    pasos_font_name="Segoe UI",  pasos_font_size=11,
-    step_font_name="Segoe UI",   step_font_size=11,
-    expected_font_name="Segoe UI", expected_font_size=11,
-    exito_font_name="Segoe UI", exito_font_size=12,
+    table_font_name="Source Sans Pro", table_font_size=12,
+    pasos_font_name="Source Sans Pro",  pasos_font_size=11,
+    step_font_name="Source Sans Pro",   step_font_size=11,
+    expected_font_name="Source Sans Pro", expected_font_size=11,
+    exito_font_name="Source Sans Pro", exito_font_size=12,
 )
 
 

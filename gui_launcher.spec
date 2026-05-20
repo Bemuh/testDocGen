@@ -4,8 +4,10 @@ from PyInstaller.utils.hooks import collect_all
 datas = []
 binaries = []
 hiddenimports = []
-tmp_ret = collect_all('docx')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+for _pkg in ('docx', 'docx2pdf'):
+    tmp_ret = collect_all(_pkg)
+    datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+hiddenimports += ['win32com', 'win32com.client', 'pythoncom', 'pywintypes']
 
 
 a = Analysis(

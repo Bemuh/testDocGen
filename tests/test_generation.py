@@ -52,15 +52,22 @@ def _make_cfg(template_path: Path, overrides=None) -> TestCaseDocumentConfig:
 
 def test_filename_builder_sample():
     cfg = _make_cfg(_find_template())
+    excel_stem = "Finagro garantias globales_11922 _ HU15 - AUT_HU035_REQ003"
     resolved = resolve_case(
         case_id="17731",
         title="CP-14 – Validación mensajes de campos obligatorios",
         steps=[("A", "B")],
         cfg=cfg,
-        source_text="Finagro garantias globales_11922 _ HU15 - AUT_HU035_REQ003",
+        source_text=excel_stem,
     )
-    expected = "17731CP14–ValidaciónMensajesDeCamposObligatorios_HU15_AUT_HU035_REQ003_V001"
+    # UserStoryName = stem del Excel tal cual (sin chars inválidos Windows)
+    expected = f"20251223_17731CP14_{excel_stem}_V001"
     assert build_output_filename(resolved) == expected
+    assert resolved.user_story_name == excel_stem
+    assert resolved.historia_usuario == excel_stem
+    assert resolved.date_compact == "20251223"
+    assert resolved.date_slash == "2025/12/23"
+    assert build_output_filename(resolved) == resolved.header_line
 
 
 def test_docx_contains_sections_and_overrides(tmp_path: Path):
@@ -89,9 +96,11 @@ def test_docx_contains_sections_and_overrides(tmp_path: Path):
     header_text = _docx_text(out_path, "word/header1.xml")
     body_text = _docx_text(out_path, "word/document.xml")
 
+    excel_stem = "Finagro garantias globales_11922 _ HU15 - AUT_HU035_REQ003"
+
     assert "Casos De Prueba" in header_text
     assert "Proyecto Garant" in header_text
-    assert "17731 HU15-AUT HU035 REQ003" in header_text
+    assert f"20260101_17731CP14_{excel_stem}_V002" in header_text
     assert "DOCUMENTO PRIVADO" in header_text
 
     assert "Formato Caso de Prueba" in body_text
@@ -100,13 +109,15 @@ def test_docx_contains_sections_and_overrides(tmp_path: Path):
     assert "Pasos" in body_text
     assert "Resultados del caso de prueba" in body_text
     assert "Evidencia" in body_text
+    assert "video.mp4" in body_text  # evidencia ahora se imprime en la celda
     assert "Control De Acceso" in body_text
     assert "Control De Versiones" in body_text
 
     assert "QA Editado" in body_text
-    assert "01/01/2026" in body_text
+    assert "2026/01/01" in body_text  # celda Fecha en formato YYYY/MM/DD
+    assert excel_stem in body_text  # Historia de usuario = stem Excel
     assert "Paso 1" in body_text
     assert "Resultado 2" in body_text
 
-    expected_name = "17731CP14–CasoEditado_HU15_AUT_HU035_REQ003_V002"
+    expected_name = f"20260101_17731CP14_{excel_stem}_V002"
     assert build_output_filename(resolved) == expected_name

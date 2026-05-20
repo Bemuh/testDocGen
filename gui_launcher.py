@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 import datetime as _dt
+import logging
 import threading
 
 from generator_core import generate_docs
@@ -9,11 +10,26 @@ from document_generator import TestCaseDocumentConfig, FontConfig
 from processor import regenerate_single
 
 
-DEFAULT_FONT = FontConfig("Segoe UI", 12,
-                          "Segoe UI", 11,
-                          "Segoe UI", 11,
-                          "Segoe UI", 11,
-                          "Segoe UI", 12)
+def _setup_logging(dest: Path) -> Path:
+    """Configura logging hacia un archivo dentro de la carpeta destino.
+    Devuelve la ruta del log para mostrarla al usuario."""
+    log_path = dest / "testdocgen.log"
+    root = logging.getLogger()
+    # Limpiar handlers previos para evitar duplicados entre ejecuciones
+    for h in list(root.handlers):
+        root.removeHandler(h)
+    handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+    return log_path
+
+
+DEFAULT_FONT = FontConfig("Source Sans Pro", 12,
+                          "Source Sans Pro", 11,
+                          "Source Sans Pro", 11,
+                          "Source Sans Pro", 11,
+                          "Source Sans Pro", 12)
 
 PLACE_FONT = ("Segoe UI", 9, "italic")
 EDIT_FONT  = ("Segoe UI", 10, "normal")
@@ -46,7 +62,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Generador De Evidencias De Casos de Prueba - Azure DevOps")
-        self.geometry("800x300")
+        self.geometry("800x460")
         self.resizable(False, False)
 
         # ----- StringVars vacíos -----
@@ -57,6 +73,9 @@ class App(tk.Tk):
         self.date       = tk.StringVar(value=_dt.date.today().strftime("%d/%m/%Y"))
         self.header_img = tk.StringVar(value="")
         self.footer_img = tk.StringVar(value="")
+        self.evidencia  = tk.StringVar(value="")
+        self.version    = tk.StringVar(value="001")
+        self.generate_pdf = tk.BooleanVar(value=True)
         
         # Dictionary to track Entry widgets for later access
         self.entries = {}
@@ -115,9 +134,41 @@ class App(tk.Tk):
             "PNG/JPG que se insertará en el pie de página.  Si no se especifica, se usará la imagen de ICETEX por defecto.",
             browse=True, is_path=False)
 
-        ttk.Button(self, text="Generar", command=self._run).pack(pady=12)
-        self.status = ttk.Label(self, text="", foreground="green")
-        self.status.pack()
+        row("Evidencias:", self.evidencia, "Texto/ruta/descripción de la evidencia",
+            "Información (ruta, descripción, hash, etc.) que se inscribirá en la celda 'Evidencia' del documento.")
+
+        row("Versión:", self.version, "001",
+            "Versión del documento (campo V en el nombre del archivo).")
+
+        # Checkbox PDF
+        pdf_frame = tk.Frame(self)
+        pdf_frame.pack(fill="x", **pad)
+        ttk.Label(pdf_frame, text="", width=20).pack(side="left")
+        ttk.Checkbutton(pdf_frame, text="Generar también copia PDF",
+                        variable=self.generate_pdf).pack(side="left")
+        ttk.Button(pdf_frame, text="?", width=2,
+                   command=lambda: messagebox.showinfo(
+                       "Ayuda",
+                       "Si está activo, se intenta generar un .pdf junto al .docx usando "
+                       "Microsoft Word (o LibreOffice). Desmárcalo si Word no está disponible "
+                       "o no quieres el PDF.")).pack(side="left", padx=(4, 0))
+
+        self.generate_btn = ttk.Button(self, text="Generar", command=self._run)
+        self.generate_btn.pack(pady=12)
+
+        # Barra de progreso + status detallado
+        progress_frame = tk.Frame(self)
+        progress_frame.pack(fill="x", padx=20, pady=(2, 4))
+        self.progress = ttk.Progressbar(progress_frame, mode="determinate", length=600)
+        self.progress.pack(fill="x")
+        info_frame = tk.Frame(self)
+        info_frame.pack(fill="x", padx=20)
+        self.counter = ttk.Label(info_frame, text="", foreground="black",
+                                 font=("Segoe UI", 9))
+        self.counter.pack(side="right")
+        self.status = ttk.Label(info_frame, text="", foreground="green",
+                                font=("Segoe UI", 9))
+        self.status.pack(side="left")
 
     # --------------- helper browse ---------------
     def _browse(self, var: tk.StringVar, path_mode: bool):
@@ -139,15 +190,53 @@ class App(tk.Tk):
                 messagebox.showerror("Imagen no válida",
                                      "Las imágenes deben ser .png, .jpg, .jpeg, .bmp o .gif")
                 return
-        self.status.config(text="Procesando...")
+        self.generate_btn.config(state="disabled")
+        self.status.config(text="Iniciando...", foreground="blue")
+        self.counter.config(text="")
+        self.progress.config(mode="determinate", value=0, maximum=100)
+        self.update_idletasks()
         threading.Thread(target=self._worker, daemon=True).start()
 
     def _finish(self, msg, color):
-        """Update status label on the main thread."""
-        self.after(0, lambda: self.status.config(text=msg, foreground=color))
+        """Update status label on the main thread; reactivate Generar button."""
+        def _do():
+            self.status.config(text=msg, foreground=color)
+            self.generate_btn.config(state="normal")
+            # Si terminamos OK, dejar la barra al 100 %
+            if color == "green" and self.progress["maximum"] > 0:
+                self.progress["value"] = self.progress["maximum"]
+                self.counter.config(text="100%")
+        self.after(0, _do)
+
+    def _on_progress(self, msg: str, current: int, total: int):
+        """Callback que el worker llama desde su hilo. Despachamos al main."""
+        def _do():
+            self.status.config(text=msg, foreground="blue")
+            if total > 0:
+                self.progress["maximum"] = total
+                self.progress["value"] = current
+                pct = int(current * 100 / total) if total else 0
+                self.counter.config(text=f"{current}/{total}  ({pct}%)")
+            else:
+                self.progress["value"] = 0
+                self.counter.config(text="")
+        self.after(0, _do)
 
     def _worker(self):
         try:
+            ev_default = "Texto/ruta/descripción de la evidencia"
+            evidencia_val = self.evidencia.get()
+            if evidencia_val == ev_default:
+                evidencia_val = ""
+
+            version_val = (self.version.get() or "001").strip() or "001"
+            gen_pdf = self.generate_pdf.get()
+            dest_path = Path(self.folder_dst.get() or ".")
+            dest_path.mkdir(parents=True, exist_ok=True)
+            log_path = _setup_logging(dest_path)
+            logging.info("=== Inicio de generación ===")
+            logging.info("PDF activado: %s", gen_pdf)
+
             cfg = TestCaseDocumentConfig(
                 header_image=self.header_img.get() or "header.png",
                 footer_image=self.footer_img.get() or "footer.png",
@@ -159,37 +248,58 @@ class App(tk.Tk):
                 template_path=None,
                 privacy_classification="DOCUMENTO PRIVADO",
                 resultado="Exito",
-                evidencia="",
-                version="001",
+                evidencia=evidencia_val,
+                version=version_val,
             )
 
-            collisions = generate_docs(
+            report = generate_docs(
                 Path(self.folder_src.get()),
                 cfg,
-                dest_root=Path(self.folder_dst.get()) or None,
-                overwrite=False
+                dest_root=dest_path,
+                overwrite=False,
+                generate_pdf=gen_pdf,
+                progress_callback=self._on_progress,
             )
 
-            if collisions:
-                decision = self._ask_global(len(collisions))
+            if report.collisions:
+                decision = self._ask_global(len(report.collisions))
                 if decision == "cancel":
                     self._finish("Operación cancelada.", "red"); return
                 if decision == "skip_all":
-                    self._finish("Generación terminada (se omitieron archivos existentes).", "green"); return
+                    self._finish(self._summary(report) + " (existentes omitidos)", "green"); return
                 if decision == "replace_all":
-                    generate_docs(
+                    report = generate_docs(
                         Path(self.folder_src.get()),
                         cfg,
-                        dest_root=Path(self.folder_dst.get()) or None,
-                        overwrite=True
+                        dest_root=dest_path,
+                        overwrite=True,
+                        generate_pdf=gen_pdf,
+                        progress_callback=self._on_progress,
                     )
                 elif decision == "ask_each":
-                    self._ask_each(collisions, cfg)
+                    self._ask_each(report.collisions, cfg)
+
+            logging.info("=== Fin de generación: %s ===", self._summary(report))
 
         except Exception as exc:  # noqa: BLE001
+            logging.exception("Error inesperado durante la generación")
             self._finish(f"Error: {exc}", "red")
         else:
-            self._finish("¡Documentos de Word generados con éxito!", "green")
+            self._finish(self._summary(report), "green")
+
+    def _summary(self, report) -> str:
+        if report.docx_count == 0:
+            src = Path(self.folder_src.get()).resolve()
+            return (
+                f"⚠ No se encontró ningún .xlsx en '{src}'. "
+                "Selecciona la 'Carpeta origen' que contiene los Excel."
+            )
+        pdf_part = ""
+        if self.generate_pdf.get():
+            pdf_part = f"; {report.pdf_count} PDFs"
+            if report.pdf_failed:
+                pdf_part += f" ({report.pdf_failed} fallidos)"
+        return f"OK: {report.docx_count} documentos Word{pdf_part}."
 
     # ---------- diálogo global (4 opciones) -----------------------------------
     def _ask_global(self, n: int) -> str:
@@ -221,7 +331,7 @@ class App(tk.Tk):
 
         for p in paths:
             if replace_all:
-                regenerate_single(p, cfg); continue
+                regenerate_single(p, cfg, generate_pdf=self.generate_pdf.get()); continue
             if skip_all:
                 continue
 
@@ -246,10 +356,10 @@ class App(tk.Tk):
             if choice == "cancel":
                 break
             if choice == "yes":
-                regenerate_single(p, cfg)
+                regenerate_single(p, cfg, generate_pdf=self.generate_pdf.get())
             elif choice == "yes_all":
                 replace_all = True
-                regenerate_single(p, cfg)
+                regenerate_single(p, cfg, generate_pdf=self.generate_pdf.get())
             elif choice == "no_all":
                 skip_all = True
 

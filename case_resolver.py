@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import datetime as _dt
+import logging
 import re
 from typing import Iterable, Mapping
 
@@ -17,9 +19,12 @@ class ResolvedCase:
     cp_num: str
     title: str
     title_slug: str
+    user_story_name: str
     project: str
     analyst: str
     date: str
+    date_compact: str
+    date_slash: str
     historia_usuario: str
     hu_primary: str
     hu_secondary: str
@@ -32,17 +37,12 @@ class ResolvedCase:
 
     @property
     def header_line(self) -> str:
-        parts = [self.case_id]
-        hu_prefix = f"HU{self.hu_primary}" if self.hu_primary else ""
-        hu_second = f"HU{self.hu_secondary}" if self.hu_secondary else ""
-        req = f"REQ{self.req}" if self.req else ""
-        if hu_prefix:
-            parts.append(f"{hu_prefix}-AUT")
-        if hu_second:
-            parts.append(hu_second)
-        if req:
-            parts.append(req)
-        return " ".join(p for p in parts if p).strip()
+        cp_num = self.cp_num or ""
+        version = self.version or "001"
+        return (
+            f"{self.date_compact}_{self.case_id}CP{cp_num}"
+            f"_{self.user_story_name}_V{version}"
+        )
 
 
 _RE_CP_PREFIX = re.compile(r"^\s*CP\s*[- ]?\s*(\d+)\s*[–\-:]*\s*(.*)$", re.IGNORECASE)
@@ -97,6 +97,25 @@ def _sanitize_project(text: str) -> str:
     return _INVALID_CHARS.sub("", text or "").strip()
 
 
+def _parse_date_compact(date_str: str) -> str:
+    """Convierte la fecha de la UI a YYYYMMDD.
+
+    Acepta DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, YYYYMMDD. Si nada cuadra,
+    intenta extraer 8 dígitos consecutivos; en último caso usa hoy."""
+    text = (date_str or "").strip()
+    for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%Y%m%d"):
+        try:
+            return _dt.datetime.strptime(text, fmt).strftime("%Y%m%d")
+        except ValueError:
+            continue
+    digits = re.sub(r"\D", "", text)
+    if len(digits) == 8:
+        return digits
+    fallback = _dt.date.today().strftime("%Y%m%d")
+    logging.warning("Fecha '%s' no se pudo parsear; se usa la de hoy (%s).", date_str, fallback)
+    return fallback
+
+
 def resolve_case(
     case_id: str | int | float,
     title: str,
@@ -127,16 +146,11 @@ def resolve_case(
     hu_secondary = overrides.get("hu_secundaria", hu_secondary) or ""
     req = overrides.get("req", req) or ""
 
-    historia_usuario = overrides.get(
-        "historia_usuario",
-        " ".join(
-            part for part in [
-                f"HU{hu_primary}-AUT" if hu_primary else "",
-                f"HU{hu_secondary}" if hu_secondary else "",
-                f"REQ{req}" if req else "",
-            ] if part
-        ),
-    )
+    # UserStoryName = stem del Excel tal cual, sólo se quitan chars inválidos de Windows
+    raw_excel_name = str(source_for_tokens or "").strip()
+    user_story_name = _INVALID_CHARS.sub("", raw_excel_name).strip()
+
+    historia_usuario = overrides.get("historia_usuario", user_story_name)
     if not historia_usuario:
         historia_usuario = getattr(cfg, "user_story", "")
 
@@ -149,14 +163,20 @@ def resolve_case(
         for action, expected in steps:
             resolved_steps.append(Step(str(action or ""), str(expected or "")))
 
+    date_str = str(date).strip()
+    date_compact = _parse_date_compact(date_str)
+    date_slash = f"{date_compact[:4]}/{date_compact[4:6]}/{date_compact[6:8]}"
     return ResolvedCase(
         case_id=case_id_norm,
         cp_num=cp_num,
         title=str(title_final).strip(),
         title_slug=title_slug,
+        user_story_name=user_story_name,
         project=_sanitize_project(str(project)),
         analyst=str(analyst).strip(),
-        date=str(date).strip(),
+        date=date_str,
+        date_compact=date_compact,
+        date_slash=date_slash,
         historia_usuario=str(historia_usuario).strip(),
         hu_primary=str(hu_primary),
         hu_secondary=str(hu_secondary),
@@ -170,15 +190,11 @@ def resolve_case(
 
 
 def build_output_filename(resolved_case: ResolvedCase) -> str:
-    dash = "\u2013"
     cp_num = resolved_case.cp_num or ""
-    title_slug = resolved_case.title_slug
+    user_story_name = resolved_case.user_story_name
     version = resolved_case.version or "001"
     return (
+        f"{resolved_case.date_compact}_"
         f"{resolved_case.case_id}CP{cp_num}"
-        f"{dash}{title_slug}"
-        f"_HU{resolved_case.hu_primary}"
-        f"_AUT_HU{resolved_case.hu_secondary}"
-        f"_REQ{resolved_case.req}"
-        f"_V{version}"
+        f"_{user_story_name}_V{version}"
     )
