@@ -39,7 +39,7 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Ruta al template DOCX (opcional)")
     p.add_argument("--privacy", default="DOCUMENTO PRIVADO",
                    help="ClasificaciÇün del documento (por defecto: DOCUMENTO PRIVADO)")
-    p.add_argument("--result", default="Exito",
+    p.add_argument("--result", default="Éxito",
                    help="Resultado del caso de prueba")
     p.add_argument("--evidence", default="",
                    help="Evidencia del caso de prueba")

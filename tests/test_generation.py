@@ -43,7 +43,7 @@ def _make_cfg(template_path: Path, overrides=None) -> TestCaseDocumentConfig:
         ),
         template_path=str(template_path),
         privacy_classification="DOCUMENTO PRIVADO",
-        resultado="Exito",
+        resultado="Éxito",
         evidencia="CP14.mp4",
         version="001",
         case_overrides=overrides or {},

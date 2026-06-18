@@ -247,7 +247,7 @@ class App(tk.Tk):
                 font_config=DEFAULT_FONT,
                 template_path=None,
                 privacy_classification="DOCUMENTO PRIVADO",
-                resultado="Exito",
+                resultado="Éxito",
                 evidencia=evidencia_val,
                 version=version_val,
             )

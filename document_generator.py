@@ -56,7 +56,7 @@ class TestCaseDocumentConfig:
         font_config,
         template_path=None,
         privacy_classification="DOCUMENTO PRIVADO",
-        resultado="Exito",
+        resultado="Éxito",
         evidencia="",
         version="001",
         case_overrides=None,
@@ -266,7 +266,7 @@ def _create_document_structure() -> Document:
     _set_cell_text(row7.cells[0], "Resultados del caso de prueba", bold=True)
     row7.cells[0].width = label_w
     row7.cells[2].merge(row7.cells[3]).merge(row7.cells[4])
-    _set_cell_text(row7.cells[2], "Exito")
+    _set_cell_text(row7.cells[2], "Éxito")
     row7.cells[2].width = merged_val_w
     
     # Row 8: Evidencia | (empty)
@@ -445,7 +445,7 @@ def _populate_header(doc: Document, resolved: ResolvedCase, cfg: TestCaseDocumen
             paragraph.text = ""
             
         lines = [
-            "Casos De Prueba:",
+            "Casos De Prueba",
             f"Proyecto {resolved.project}",
             resolved.header_line,
             resolved.privacidad,
@@ -684,14 +684,6 @@ def _populate_main_table(doc: Document, resolved: ResolvedCase) -> None:
         if label_norm.startswith("resultados del caso de prueba"):
             result_row_idx = idx
             break
-        # Also check for "exito" pattern in case label is wrong
-        unique_cells = _get_unique_cells(row)
-        if len(unique_cells) >= 2:
-            cell_texts = [c.text.strip().lower() for c in unique_cells]
-            if ("exito" in cell_texts[0] or "éxito" in cell_texts[0] or
-                "exito" in cell_texts[1] or "éxito" in cell_texts[1]):
-                result_row_idx = idx
-                # Don't break - prefer to find the proper label if it exists later
 
     # Populate steps (this changes row indices!)
     _populate_steps(table, pasos_row_idx, result_row_idx, resolved.steps)
@@ -706,12 +698,10 @@ def _populate_main_table(doc: Document, resolved: ResolvedCase) -> None:
             continue
         cell_texts = [c.text.strip().lower() for c in unique_cells]
         
-        # Detect "Resultados del caso de prueba" row
+        # Detect "Resultados del caso de prueba" row (anchor on the label only)
         if result_row_idx is None:
             label_norm = " ".join(cell_texts[0].replace("\xa0", " ").split())
             if label_norm.startswith("resultados del caso de prueba"):
-                result_row_idx = idx
-            elif "exito" in cell_texts[0] or "exito" in cell_texts[1] or "éxito" in cell_texts[0] or "éxito" in cell_texts[1]:
                 result_row_idx = idx
         
         # Detect "Evidencia" row

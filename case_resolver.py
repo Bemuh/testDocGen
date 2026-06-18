@@ -37,11 +37,8 @@ class ResolvedCase:
 
     @property
     def header_line(self) -> str:
-        cp_num = self.cp_num or ""
-        version = self.version or "001"
         return (
-            f"{self.date_compact}_{self.case_id}CP{cp_num}"
-            f"_{self.user_story_name}_V{version}"
+            f"{self.user_story_name}"
         )
 
 
